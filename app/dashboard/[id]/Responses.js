@@ -6,6 +6,7 @@ import EditQuestions from "./EditQuestions.js";
 import Summary from "./Summary.js";
 import { signedFileUrl } from "../../../lib/uploads.js";
 import OneResponse from "./OneResponse.js";
+import { ago, statusOf } from "../../../lib/status.js";
 
 const PAGE_SIZE = 25;
 
@@ -161,6 +162,7 @@ export default function Responses({ formId }) {
   const [everything, setEverything] = useState(null); // all rows, fetched on demand
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [working, setWorking] = useState(false);
 
   const load = useCallback(async () => {
@@ -241,6 +243,9 @@ export default function Responses({ formId }) {
   const shareUrl =
     typeof window !== "undefined" ? `${window.location.origin}/f/${form.id}` : "";
 
+  const status = statusOf(form);
+  const latest = data.latestAt ? ago(data.latestAt) : "";
+
   function statusLine() {
     if (!form.open) return "closed";
     if (form.closesAt) {
@@ -258,7 +263,13 @@ export default function Responses({ formId }) {
     return "";
   }
 
-  const week = weekOf(everything?.responses || responses);
+  // From the server's own count of the last eight days, not the page on
+  // screen (page 1 is the OLDEST answers, so it was wrong on busy forms).
+  const week = weekOf(
+    Array.isArray(data.recentTimes)
+      ? data.recentTimes.map((t) => ({ submittedAt: t }))
+      : everything?.responses || responses
+  );
   const weekTop = Math.max(1, ...week.map((d) => d.count));
   const todayCount = week[week.length - 1]?.count || 0;
 
@@ -358,18 +369,17 @@ export default function Responses({ formId }) {
 
   return (
     <>
-      <div className="spread" style={{ marginBottom: 22 }}>
+      <header className="page-head">
         <div>
-          <h1 style={{ marginBottom: 8 }}>{form.title}</h1>
-          <div className="row">
-            <span className={`tag ${form.open ? "good" : ""}`}>
-              {form.open ? "Open" : "Closed"}
-            </span>
-            {statusLine() && <span className="hint" style={{ margin: 0 }}>{statusLine()}</span>}
+          <a className="crumb" href="/dashboard">← My forms</a>
+          <h1>{form.title}</h1>
+          <div className="row" style={{ gap: 8 }}>
+            <span className={`status ${status.tone}`}>{status.label}</span>
+            {status.detail && <span className="hint" style={{ margin: 0 }}>{status.detail}</span>}
           </div>
         </div>
-        <div className="row" style={{ flexWrap: "nowrap" }}>
-          <button className="btn small" onClick={refresh}>Refresh</button>
+        <div className="row head-actions">
+          <button className="btn small icon" onClick={refresh} title="Refresh" aria-label="Refresh">↻</button>
           <button className="btn small" onClick={copyForSheets} disabled={total === 0 || working}>
             {copied ? "Copied — paste into Sheets" : "Copy for Sheets"}
           </button>
@@ -377,21 +387,34 @@ export default function Responses({ formId }) {
             Download CSV
           </button>
         </div>
+      </header>
+
+      <div className="share-bar">
+        <span className="share-label">Share</span>
+        <code>{shareUrl}</code>
+        <button
+          className="btn small"
+          onClick={() => {
+            navigator.clipboard?.writeText(shareUrl);
+            setLinkCopied(true);
+            setTimeout(() => setLinkCopied(false), 2000);
+          }}
+        >
+          {linkCopied ? "Copied ✓" : "Copy link"}
+        </button>
+        <button className="btn small ghost" onClick={() => setView("settings")}>QR code</button>
       </div>
 
-      <div className="bento">
-        <div className="card">
-          <div className="spread" style={{ marginBottom: 10 }}>
-            <span className="label" style={{ margin: 0 }}>Responses</span>
-            {todayCount > 0 && <span className="tag good">↑ {todayCount} today</span>}
-          </div>
-          <p className="stat-big">{total}</p>
+      <section className="stat-row" aria-label="At a glance">
+        <div className="stat-tile wide">
+          <span className="stat-label">Responses</span>
+          <strong className="stat-num">{total.toLocaleString()}</strong>
           <div className="spark" aria-hidden="true">
             {week.map((d) => (
               <div key={d.key}>
                 <i
                   style={{
-                    height: `${Math.round((d.count / weekTop) * 88) + 8}px`,
+                    height: `${Math.round((d.count / weekTop) * 44) + 4}px`,
                     animationDelay: `${d.i * 45}ms`,
                   }}
                   title={`${d.count} on ${d.key}`}
@@ -401,63 +424,74 @@ export default function Responses({ formId }) {
             ))}
           </div>
         </div>
+        <div className="stat-tile">
+          <span className="stat-label">Today</span>
+          <strong className="stat-num">{todayCount}</strong>
+          <span className="stat-note">{todayCount === 1 ? "new answer" : "new answers"}</span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">Last answer</span>
+          <strong className="stat-num small">{latest || "—"}</strong>
+          <span className="stat-note">{total ? "most recent" : "nothing yet"}</span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">Questions</span>
+          <strong className="stat-num">{form.fields.length}</strong>
+          <span className="stat-note">
+            {new Set(form.fields.map((f) => f.page || 1)).size > 1
+              ? `on ${new Set(form.fields.map((f) => f.page || 1)).size} pages`
+              : "on one page"}
+          </span>
+        </div>
+      </section>
 
-        <div className="card">
-          <span className="label">Share link</span>
-          <div className="linkbox">
-            <code>{shareUrl}</code>
-            <button className="btn small" onClick={() => navigator.clipboard?.writeText(shareUrl)}>
-              Copy
+      <div className="toolbar">
+        <div className="view-tabs" role="tablist" aria-label="How to look at the answers">
+          <button role="tab" aria-selected={view === "summary"} className={`btn small${view === "summary" ? " on" : ""}`} onClick={showSummary} disabled={total === 0}>
+            Summary
+          </button>
+          <button role="tab" aria-selected={view === "table"} className={`btn small${view === "table" ? " on" : ""}`} onClick={() => setView("table")}>
+            Every answer <span className="count-chip">{total}</span>
+          </button>
+          <button role="tab" aria-selected={view === "one"} className={`btn small${view === "one" ? " on" : ""}`} onClick={showOne} disabled={total === 0}>
+            One at a time
+          </button>
+          <button role="tab" aria-selected={view === "settings"} className={`btn small${view === "settings" ? " on" : ""}`} onClick={() => setView("settings")}>
+            Questions &amp; settings
+          </button>
+        </div>
+
+        {view === "table" && total > 0 && (
+          <div className="row" style={{ flexWrap: "nowrap" }}>
+            <input
+              type="search"
+              className="search"
+              value={query}
+              placeholder="Search every answer…"
+              aria-label="Search responses"
+              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+            />
+            <button
+              className="btn small danger"
+              onClick={deleteEverything}
+              disabled={busy === "all"}
+            >
+              {busy === "all" ? "Deleting…" : "Delete all"}
             </button>
           </div>
+        )}
+      </div>
+
+      {view === "settings" ? (
+        <>
+          <EditQuestions form={form} responseCount={total} onSaved={applySaved} />
+          <FormSettings form={form} shareUrl={shareUrl} onSaved={applySaved} />
           <p className="hint">
             Press <strong>Copy for Sheets</strong>, open a blank sheet, click A1 and paste.
             Every column lands in place.
           </p>
-        </div>
-      </div>
-
-      <EditQuestions form={form} responseCount={total} onSaved={applySaved} />
-
-      <FormSettings form={form} shareUrl={shareUrl} onSaved={applySaved} />
-
-      {total > 0 && (
-        <div className="spread" style={{ marginBottom: 12 }}>
-          <div className="view-tabs">
-            <button className={`btn small${view === "summary" ? " on" : ""}`} onClick={showSummary}>
-              Summary
-            </button>
-            <button className={`btn small${view === "table" ? " on" : ""}`} onClick={() => setView("table")}>
-              Every answer
-            </button>
-            <button className={`btn small${view === "one" ? " on" : ""}`} onClick={showOne}>
-              One at a time
-            </button>
-          </div>
-
-          {view === "table" && (
-            <div className="row" style={{ flexWrap: "nowrap" }}>
-              <input
-                type="search"
-                value={query}
-                placeholder="Search every answer…"
-                aria-label="Search responses"
-                onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                style={{ width: 240 }}
-              />
-              <button
-                className="btn small danger"
-                onClick={deleteEverything}
-                disabled={busy === "all"}
-              >
-                {busy === "all" ? "Deleting…" : "Delete all"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {view === "one" ? (
+        </>
+      ) : view === "one" ? (
         awaitingAll ? (
           <p className="empty">Loading every response…</p>
         ) : (

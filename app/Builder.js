@@ -4,6 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import FormFields from "./FormFields.js";
 import { localToInstant } from "../lib/schema.js";
 
+// One tap fills the box with a real example, so a first-time user sees what
+// "describe it" means instead of staring at an empty box.
+const STARTERS = [
+  ["Workshop sign-up", "Registration for our AI workshop on Saturday. Name, college email, phone, year of study, and which track they want: Beginner, Intermediate or Advanced. Close it by Friday night."],
+  ["Mess feedback", "Hostel mess feedback for this month. Hostel block, rate breakfast, lunch and dinner out of 5, which meal needs the most work, and any suggestions."],
+  ["Assignment link", "Assignment 3 submission. Name, roll number, section A, B or C, a Google Drive link to the PDF, and anything they want the teacher to know."],
+  ["Event RSVP", "RSVP for the guest lecture on Friday at 4 pm. Name, roll number, will they attend yes or no, and one question they want to ask the speaker."],
+];
+
 const WAVE = [0, 130, 260, 90, 200, 40, 310, 160, 70, 240, 110, 20];
 
 const TYPES = [
@@ -321,10 +330,10 @@ export default function Builder({ workspaces: initialWorkspaces = [], loadError 
 
   return (
     <>
-      <h1>Describe a form. Share the link.</h1>
+      <h1 className="build-title">What do you need to <mark>collect</mark>?</h1>
       <p className="lede">
-        Speak or type what you need to collect. JiffyThat writes the questions, gives you a
-        link anyone can open, and keeps every answer in one place.
+        Say it or type it the way you&apos;d tell a friend. JiffyThat writes the questions,
+        you check them, and everyone gets one link.
       </p>
 
       {loadError && <div className="note bad">{loadError}</div>}
@@ -343,7 +352,7 @@ export default function Builder({ workspaces: initialWorkspaces = [], loadError 
         <div className="compose-bar">
           {voiceSupported && (
             <button
-              className={`btn mic${listening ? " on" : ""}`}
+              className={`btn mic hl${listening ? " on" : ""}`}
               onClick={toggleMic}
               disabled={busy || transcribing}
               aria-pressed={listening}
@@ -394,10 +403,22 @@ export default function Builder({ workspaces: initialWorkspaces = [], loadError 
         </p>
       )}
 
+      {!form && !instructions && !listening && (
+        <div className="starters">
+          <span className="starters-label">Or start from one of these</span>
+          {STARTERS.map(([name, text]) => (
+            <button key={name} type="button" className="starter" onClick={() => setInstructions(text)}>
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && <div className="note bad" style={{ marginTop: 18 }}>{error}</div>}
 
       {form && (
-        <>
+        <div className="build-grid">
+          <div className="build-main">
           <div className="card">
             <h2 style={{ marginBottom: 16 }}>Check it over</h2>
 
@@ -446,6 +467,7 @@ export default function Builder({ workspaces: initialWorkspaces = [], loadError 
 
             {form.fields.map((f, i) => (
               <div className="preview-field" key={`${f.id}-${i}`}>
+                <span className="q-n" aria-hidden="true">{i + 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <input
                     type="text"
@@ -457,7 +479,7 @@ export default function Builder({ workspaces: initialWorkspaces = [], loadError 
                     <select
                       value={f.type}
                       onChange={(e) => patchField(i, { type: e.target.value })}
-                      style={{ width: "auto", padding: "5px 9px", fontSize: 13 }}
+                      className="mini-select"
                       aria-label={`Type for ${f.label}`}
                     >
                       {TYPES.map(([v, l]) => (
@@ -544,7 +566,7 @@ export default function Builder({ workspaces: initialWorkspaces = [], loadError 
 
               <div className="row" style={{ flexWrap: "nowrap" }}>
                 <button className="btn" onClick={generate} disabled={busy}>Rebuild</button>
-                <button className="btn primary" onClick={publish} disabled={busy || form.fields.length === 0}>
+                <button className="btn hl" onClick={publish} disabled={busy || form.fields.length === 0}>
                   {busy ? <><span className="spin" /> Publishing…</> : "Publish & get link"}
                 </button>
               </div>
@@ -569,9 +591,15 @@ export default function Builder({ workspaces: initialWorkspaces = [], loadError 
             </div>
           )}
 
+          </div>
+
+          <aside className="build-preview" aria-label="Preview">
           <div className="card">
-            <h2 style={{ marginBottom: 14 }}>Preview</h2>
-            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 18 }}>
+            <div className="preview-head">
+              <span className="share-label">Preview</span>
+              <span className="hint">What people will see</span>
+            </div>
+            <div>
               <h2 style={{ fontSize: 22 }}>{form.title}</h2>
               {form.description && <p className="lede" style={{ marginBottom: 20 }}>{form.description}</p>}
               <FormFields
@@ -584,7 +612,8 @@ export default function Builder({ workspaces: initialWorkspaces = [], loadError 
               </button>
             </div>
           </div>
-        </>
+          </aside>
+        </div>
       )}
     </>
   );

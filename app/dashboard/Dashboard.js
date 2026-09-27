@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { statusOf } from "../../lib/status.js";
 
 const ALL = "__all__";
 const UNFILED = "__unfiled__";
@@ -41,6 +42,8 @@ export default function Dashboard({ initialWorkspaces, initialForms, loadError }
   const [adding, setAdding] = useState(false);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
+  const [tab, setTab] = useState("all");
+  const [query, setQuery] = useState("");
 
   const counts = useMemo(() => {
     const map = { [ALL]: forms.length, [UNFILED]: 0 };
@@ -180,14 +183,58 @@ export default function Dashboard({ initialWorkspaces, initialForms, loadError }
       ? "Unfiled"
       : workspaces.find((w) => w.id === selected)?.name || "Forms";
 
+  // Numbers for the strip at the top. Counted over every form, not the
+  // section, so they don't jump around when you click a section.
+  const totals = useMemo(() => {
+    let open = 0, answers = 0, soon = 0;
+    for (const f of forms) {
+      const s = statusOf(f);
+      if (s.tone !== "bad") open += 1;
+      if (s.tone === "warn") soon += 1;
+      answers += f.responseCount || 0;
+    }
+    return { open, answers, soon };
+  }, [forms]);
+
+  const byStatus = useMemo(() => {
+    const out = { all: visible, open: [], closed: [] };
+    for (const f of visible) (statusOf(f).tone === "bad" ? out.closed : out.open).push(f);
+    return out;
+  }, [visible]);
+
+  const q = query.trim().toLowerCase();
+  const shown = byStatus[tab].filter((f) => !q || f.title.toLowerCase().includes(q));
+
   return (
     <>
-      <h1>My forms</h1>
-      <p className="lede">
-        Everything you&apos;ve built. Make sections to keep different work apart.
-      </p>
+      <div className="page-head">
+        <div>
+          <h1>My forms</h1>
+          <p className="lede">Everything you&apos;ve built. Make sections to keep different work apart.</p>
+        </div>
+        <Link className="btn hl" href="/">+ New form</Link>
+      </div>
 
       {error && <div className="note bad">{error}</div>}
+
+      <div className="stat-row even">
+        <div className="stat-tile">
+          <span className="stat-label">Forms</span>
+          <span className="stat-num">{forms.length}</span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">Taking answers</span>
+          <span className="stat-num">{totals.open}</span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">Answers in total</span>
+          <span className="stat-num">{totals.answers.toLocaleString()}</span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">Closing in 24 h</span>
+          <span className="stat-num">{totals.soon}</span>
+        </div>
+      </div>
 
       <div className="split">
         <aside className="sidebar">
@@ -284,67 +331,103 @@ export default function Dashboard({ initialWorkspaces, initialForms, loadError }
         </aside>
 
         <section style={{ minWidth: 0 }}>
-          <div className="card">
-            <div className="spread" style={{ marginBottom: 4 }}>
-              <h2>{sectionTitle}</h2>
-              <span className="tag">{visible.length}</span>
-            </div>
+          <div className="list-head">
+            <h2>{sectionTitle}</h2>
+          </div>
 
-            {visible.length === 0 ? (
-              <div className="empty">
-                <p style={{ margin: "0 0 14px" }}>Nothing here yet.</p>
-                <Link className="btn primary" href="/">Build a form</Link>
-              </div>
-            ) : (
-              <div style={{ marginTop: 14 }}>
-                {visible.map((f) => (
-                  <div className="list-item" key={f.id}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 590 }}>
-                        {f.title}
-                        {!f.open && <span className="tag" style={{ marginLeft: 8 }}>Closed</span>}
+          <div className="toolbar">
+            <div className="view-tabs" role="tablist" aria-label="Show forms">
+              {[["all", "All"], ["open", "Open"], ["closed", "Closed"]].map(([key, label]) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={tab === key}
+                  className={`btn${tab === key ? " on" : ""}`}
+                  onClick={() => setTab(key)}
+                >
+                  {label} <span className="count-chip">{byStatus[key].length}</span>
+                </button>
+              ))}
+            </div>
+            {visible.length > 4 && (
+              <input
+                className="search"
+                type="search"
+                placeholder="Find a form"
+                aria-label="Find a form by name"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            )}
+          </div>
+
+          {visible.length === 0 ? (
+            <div className="card empty">
+              <p style={{ margin: "0 0 14px" }}>Nothing here yet.</p>
+              <Link className="btn primary" href="/">Build a form</Link>
+            </div>
+          ) : shown.length === 0 ? (
+            <div className="card empty">
+              <p style={{ margin: 0 }}>
+                {q ? `No form called “${query.trim()}” here.` : tab === "open" ? "Every form here is closed." : "No closed forms here."}
+              </p>
+            </div>
+          ) : (
+            <ul className="form-rows">
+              {shown.map((f) => {
+                const s = statusOf(f);
+                const n = f.responseCount ?? 0;
+                return (
+                  <li className="form-row" key={f.id}>
+                    <div className="form-row-main">
+                      <div className="form-row-title">
+                        <Link href={`/dashboard/${f.id}`}>{f.title}</Link>
+                        <span className={`status ${s.tone}`}>{s.label}</span>
                       </div>
-                      <div className="hint">
-                        {f.fields.length} question{f.fields.length === 1 ? "" : "s"} · created {when(f.createdAt)}
-                      </div>
-                      <div className="row" style={{ marginTop: 8, gap: 6 }}>
+                      <div className="form-row-meta">
+                        <span>
+                          {f.fields.length} question{f.fields.length === 1 ? "" : "s"} · made {when(f.createdAt)}
+                          {s.tone === "good" && f.closesAt ? ` · closes ${when(f.closesAt)}` : ""}
+                        </span>
                         <select
+                          className="mini-select"
                           value={f.workspaceId || ""}
                           onChange={(e) => moveForm(f.id, e.target.value)}
                           disabled={busy}
                           aria-label={`Section for ${f.title}`}
-                          style={{ width: "auto", padding: "4px 8px", fontSize: 12.5 }}
                         >
                           <option value="">Unfiled</option>
                           {workspaces.map((w) => (
                             <option key={w.id} value={w.id}>{w.name}</option>
                           ))}
                         </select>
-                        <button className="btn ghost small" onClick={() => toggleOpen(f)} disabled={busy}>
+                        <button className="link-btn" onClick={() => toggleOpen(f)} disabled={busy}>
                           {f.open ? "Close form" : "Reopen"}
                         </button>
-                        <button className="btn ghost small" onClick={() => removeForm(f)} disabled={busy}>
+                        <button className="link-btn danger" onClick={() => removeForm(f)} disabled={busy}>
                           Delete
                         </button>
                       </div>
                     </div>
 
-                    <div className="row" style={{ flexWrap: "nowrap" }}>
-                      <span className={`tag${f.responseCount > 0 ? " accent" : ""}`}>
-                        {f.responseCount ?? 0} response{f.responseCount === 1 ? "" : "s"}
-                      </span>
-                      <a className="btn small ghost" href={`/f/${f.id}`} target="_blank" rel="noreferrer">
-                        Open
-                      </a>
-                      <Link className="btn small" href={`/dashboard/${f.id}`}>
-                        Responses
-                      </Link>
+                    <div className="form-row-count">
+                      <strong>{n.toLocaleString()}</strong>
+                      <span>answer{n === 1 ? "" : "s"}</span>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+
+                    <div className="form-row-actions">
+                      <Link className="btn small primary" href={`/dashboard/${f.id}`}>
+                        View answers
+                      </Link>
+                      <a className="btn small ghost" href={`/f/${f.id}`} target="_blank" rel="noreferrer">
+                        Open ↗
+                      </a>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       </div>
     </>

@@ -14,7 +14,7 @@ import { useMemo, useState } from "react";
 // Six is the ceiling. A seventh hue cannot be added without two of them
 // becoming indistinguishable, so anything past six folds into "Other".
 // ---------------------------------------------------------------------------
-const HUES = ["#5B4BF0", "#E69F00", "#009E73", "#CC79A7", "#D55E00", "#56B4E9"];
+const HUES = ["#141414", "#E69F00", "#009E73", "#CC79A7", "#D55E00", "#56B4E9"];
 const MAX_SLICES = 6;
 
 const CHOICE = new Set(["radio", "select"]);
@@ -135,7 +135,11 @@ function Bars({ rows, total, keepOrder = false }) {
   return (
     <ul className="bars">
       {ordered.map((r) => (
-        <li key={r.label} title={`${r.label}: ${r.count} of ${total}`}>
+        <li
+          key={r.label}
+          className={r.count === top && r.count > 0 ? "lead" : undefined}
+          title={`${r.label}: ${r.count} of ${total}`}
+        >
           <span className="bar-label">{r.label}</span>
           <span className="bar-track">
             <span className="bar-fill" style={{ width: `${(r.count / top) * 100}%` }} />

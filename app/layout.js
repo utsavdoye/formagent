@@ -19,9 +19,10 @@ export default function RootLayout({ children }) {
           is why text can look slightly muddy without anyone being able to say
           why. The variable font renders them properly.
 
-          Space Grotesk carries the big display lines only. It has enough
-          character at 70px to stop the page feeling like a template, and it
-          never appears small enough to hurt readability.
+          Bricolage Grotesque carries the big display lines only. At 90px it
+          has a schoolbook warmth a neutral face lacks, which suits a tool for
+          classrooms. Geist Mono sets numbers that sit in columns — roll
+          numbers, counts, times — so they line up.
 
           Loaded by the browser rather than at build time, so an outage at
           Google can slow a page down but can never fail a deploy.
@@ -30,7 +31,7 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Space+Grotesk:wght@500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Geist+Mono:wght@400..600&family=Inter:wght@100..900&display=swap"
         />
       </head>
       <body>{children}</body>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "../../lib/supabase/browser.js";
@@ -26,6 +26,14 @@ export default function LoginForm() {
   const [message, setMessage] = useState("");
 
   const signingUp = mode === "signup";
+
+  // "Try it free" on the landing page arrives here with ?mode=signup, and
+  // should open on creating an account, not on a sign-in box for an account
+  // the person does not have yet. Read after mount so the server and browser
+  // render the same first pass.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("mode") === "signup") setMode("signup");
+  }, []);
 
   async function withGoogle() {
     if (!supabase) return;

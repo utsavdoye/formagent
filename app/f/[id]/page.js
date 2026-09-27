@@ -21,7 +21,7 @@ const CLOSED_LINES = {
 // page is derived from it.
 function accentStyle(accent) {
   if (!/^#[0-9a-f]{6}$/i.test(String(accent || ""))) return undefined;
-  return { "--accent": accent, "--accent-2": accent };
+  return { "--accent": accent, "--accent-2": accent, "--form-top": accent };
 }
 
 export default async function FormPage({ params }) {
@@ -58,7 +58,9 @@ export default async function FormPage({ params }) {
   return (
     <main className="shell narrow" style={accentStyle(form.accent)}>
       <PublicForm form={form} />
-      <p className="footer">Made with JiffyThat</p>
+      <p className="footer">
+        Made with <a href="/" target="_blank" rel="noreferrer">JiffyThat</a> · make your own form by just saying it
+      </p>
     </main>
   );
 }
